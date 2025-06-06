@@ -8,15 +8,15 @@ set -euo pipefail
 #   ./bump-version.sh <new-version>
 #
 # Example:
-#   ./bump-version.sh 0.2.0
+#   ./bump-version.sh 0.2.2
 #
 # This script will:
 #   1) Update Cargo.toml’s version = "<new-version>"
 #   2) Update flake.nix’s version = "<new-version>"
 #   3) Clear out flake.nix’s cargoHash temporarily
-#   4) Run `nix build .#crosskey --no-link` to force computation of the new hash
+#   4) Run `nix build .#crosskey --no-link` to compute the new hash
 #   5) Parse the new hash from the “got:    sha256-…” line
-#   6) Rewrite flake.nix with cargoHash = "<new-hash>"
+#   6) Rewrite flake.nix with cargoHash = "sha256:<new-hash>"
 #
 # At the end, Cargo.toml and flake.nix will be in sync.
 ################################################################################
@@ -89,10 +89,11 @@ else
   exit 1
 fi
 
-# 6) Rewrite flake.nix, replacing the blank cargoHash with the new one
-sed -E -i.bak "s/^[[:space:]]*cargoHash = \"\"/  cargoHash = \"sha256:${newhash}\"/" flake.nix
+# 6) Rewrite flake.nix, replacing the blank cargoHash with the new one.
+#    Use '|' as the sed delimiter so that any '/' in $newhash does not break the expression.
+sed -E -i.bak "s|^[[:space:]]*cargoHash = \"\"|  cargoHash = \"sha256:${newhash}\"|" flake.nix
 rm flake.nix.bak
-echo "  • flake.nix → updated cargoHash to \"${newhash}\""
+echo "  • flake.nix → updated cargoHash to \"sha256:${newhash}\""
 
 echo
 echo "✅  Bumped version to ${newver} and updated cargoHash in flake.nix."

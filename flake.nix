@@ -2,82 +2,79 @@
   description = "crosskey: a global key-overlay for highlighting Vim-style motions";
 
   inputs = {
-    # 1) Pin nixpkgs to a recent/unstable channel
+    # 1) Pin to a recent nixpkgs (you can swap nixos-unstable for any branch/commit).
     nixpkgs.url      = "github:NixOS/nixpkgs/nixos-unstable";
-    # 2) flake-utils for cross-platform boilerplate
+    # 2) flake-utils for eachDefaultSystem
     flake-utils.url  = "github:numtide/flake-utils";
-    # 3) oxalica/rust-overlay to pull in a Rust that supports edition2024
+    # 3) oxalica/rust-overlay to get a Rust toolchain with edition2024 support
     rust-overlay.url = "github:oxalica/rust-overlay";
   };
 
   outputs = { self, nixpkgs, flake-utils, rust-overlay, ... }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        ######################################################
-        # 1) Import the “base” nixpkgs for this system
-        ######################################################
+        #############################################
+        # (A) Import “base” nixpkgs for this system
+        #############################################
         pkgs = import nixpkgs { inherit system; };
 
-        ######################################################
-        # 2) Import rust-overlay as a Nix expression
-        #    (Note: no `nixpkgs = pkgs` argument here!)
-        #    This makes `ro` itself be an overlay function.
-        ######################################################
-        ro = import rust-overlay { };
-
-        #################################################################
-        # 3) Re‐import nixpkgs, but apply the `ro` overlay so that
-        #    our Rust tools (rustc, cargo, buildRustPackage, etc.)
-        #    come from the overlay (i.e. a modern toolchain).
-        #################################################################
-        rustPkgs = import nixpkgs {
+        ###################################################
+        # (B) Import rust-overlay, passing in our pkgs set
+        #     so that “ro.overlay” actually exists.
+        ###################################################
+        ro = import rust-overlay {
           inherit system;
-          overlays = [ ro ];
+          nixpkgs = pkgs;
         };
 
-        ################################################
-        # 4) Alias the Rust platform from rust-overlay
-        ################################################
+        ############################################################
+        # (C) Re-import nixpkgs, applying ro.overlay to override Rust
+        ############################################################
+        rustPkgs = import nixpkgs {
+          inherit system;
+          overlays = [ ro.overlay ];
+        };
+
         rustPlatform = rustPkgs.rustPlatform;
 
-        ###########################################################
-        # 5) Build the “crosskey” Rust package (edition2024-capable)
-        ###########################################################
+        ####################################################
+        # (D) Build the “crosskey” binary with buildRustPackage
+        ####################################################
         crosskeyPackage = rustPlatform.buildRustPackage rec {
           pname   = "crosskey";
-          version = "0.1.0";  # Must match Cargo.toml
+          version = "0.1.0";  # must match Cargo.toml
 
-          # 5a) Point at this directory; Nix will auto-find Cargo.toml & Cargo.lock
+          # D.1) Source directory (auto-detects Cargo.toml & Cargo.lock)
           src = ./.;
 
-          # 5b) Placeholder hash. After the first build fails, copy the “got …” hash here.
+          # D.2) Placeholder; run `nix build .#crosskey` once to get the real hash.
           cargoSha256 = "0000000000000000000000000000000000000000000000000000";
 
-          # 5c) If your crate uses `rdev` (or any C‐linked crate), keep pkg-config:
+          # D.3) If your crate (rdev) needs pkg-config at build time, keep this:
           nativeBuildInputs = [ rustPkgs.pkg-config ];
 
-          # 5d) If at runtime you need X11/libxcb on Linux, add them here:
+          # D.4) At runtime, if crosskey needs X11/libxcb on Linux you can add them:
           buildInputs = [ ];
         };
       in
       {
-        #######################################################
-        # 6) Expose the “crosskey” package for `nix build .#crosskey`
-        #######################################################
+        #################################################
+        # (E) Expose the crosskey package for “nix build”
+        #################################################
         packages.crosskey = crosskeyPackage;
 
-        #######################################################
-        # 7) Expose as an “app” so `nix run .#crosskey` works:
-        #######################################################
+        ###############################################
+        # (F) Expose as an “app” for “nix run .#crosskey”
+        ###############################################
         apps.default = {
           type    = "app";
           program = "${crosskeyPackage}/bin/crosskey";
         };
 
-        #####################################################################
-        # 8) Expose a development shell under `devShells.${system}.default`:
-        #    `nix develop` will give you a shell with `rustc`, `cargo`, etc.
-        #####################################################################
+        #################################################################
+        # (G) Expose a development shell under devShells.default so that
+        #     `nix develop` drops you into a shell with cargo, rustc, etc.
+        #################################################################
         devShells.default = rustPkgs.mkShell {
           buildInputs = [
             rustPkgs.rustc
@@ -86,7 +83,6 @@
             rustPkgs.rust-analyzer
             rustPkgs.pkg-config
           ];
-
           shellHook = ''
             export RUST_SRC_PATH="${rustPkgs.rustc}/lib/rustlib/src/rust/library"
             echo "Entering crosskey devShell (rustc: $(rustc --version))"

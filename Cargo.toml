@@ -1,0 +1,10 @@
+[package]
+name = "crosskey"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rdev = "0.5"
+eframe = "0.23"      # re-exports egui + winit + wgpu integration
+egui   = "0.23"
+crossbeam-channel = "0.5"   # for passing keys from listener → UI

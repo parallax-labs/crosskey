@@ -36,41 +36,51 @@
         rustPlatform = pkgs.rustPlatform;
 
         ############################################################################
-        # (D) Define crosskeyPackage using `buildRustPackage`.  Notice:
+        # (D) Gather all X11‐related dev libraries into one variable so we can
+        #     reference them in both `crosskeyPackage.buildInputs` and
+        #     `devShells.default.buildInputs` without duplication.
+        ############################################################################
+        x11Libs = [
+          pkgs.xorg.libX11
+          pkgs.xorg.libXi
+          pkgs.xorg.libXtst
+        ];
+
+        ############################################################################
+        # (E) Define crosskeyPackage using `buildRustPackage`.  Notice:
         #     • We keep `nativeBuildInputs = [ pkgs.pkg-config ]` so that
-        #       `pkg-config` is present during the build.
-        #     • We add `pkgs.xorg.libX11` to `buildInputs` so that an
-        #       `x11.pc` file exists (from Nixpkgs) when the `x11` crate’s
-        #       build.rs calls `pkg-config --cflags --libs x11`.
+        #       pkg-config is present during the build.
+        #     • We add `x11Libs` to `buildInputs` so that all required `.pc`
+        #       files (`x11.pc`, `xi.pc`, `xtst.pc`) are available.
         ############################################################################
         crosskeyPackage = rustPlatform.buildRustPackage rec {
           pname   = "crosskey";
           version = "0.1.0";  # must match Cargo.toml
 
-          # (D.1) Point at this directory (auto‐detects Cargo.toml & Cargo.lock).
+          # (E.1) Point at this directory (auto‐detects Cargo.toml & Cargo.lock).
           src = ./.;
 
-          # (D.2) After the first `nix build .#crosskey`, Nix will complain
+          # (E.2) After the first `nix build .#crosskey`, Nix will complain
           #       if cargoHash is wrong; copy the recommended hash here.
           cargoHash = "sha256:7XokwlfLlVkY/gGh9uReSw8T06tYc3IVI01k3n1IAjg=";
 
-          # (D.3) We still need `pkg-config` at build time for any crate
+          # (E.3) We still need `pkg-config` at build time for any crate
           #       whose build.rs invokes pkg-config (e.g. the `x11` crate).
           nativeBuildInputs = [ pkgs.pkg-config ];
 
-          # (D.4) Add the X11 dev library so that `x11.pc` is found:
-          #       “x11 >= 1.4.99.1” will resolve via this Nixpkgs attribute.
-          buildInputs = [ pkgs.xorg.libX11 ];
+          # (E.4) Add all the X11 dev libraries so that `x11.pc`, `xi.pc`,
+          #       and `xtst.pc` are found automatically.
+          buildInputs = x11Libs;
         };
       in
       {
         ########################################################################
-        # (E) Expose crosskey so that `nix build .#crosskey` works
+        # (F) Expose crosskey so that `nix build .#crosskey` works
         ########################################################################
         packages.crosskey = crosskeyPackage;
 
         ########################################################################
-        # (F) Expose it as an “app” so that `nix run .#crosskey` simply runs it
+        # (G) Expose it as an “app” so that `nix run .#crosskey` simply runs it
         ########################################################################
         apps.default = {
           type    = "app";
@@ -78,11 +88,11 @@
         };
 
         ########################################################################
-        # (G) Expose a development shell.  `nix develop` provides:
+        # (H) Expose a development shell.  `nix develop` provides:
         #     • pkgs.rustc, pkgs.cargo, pkgs.rustfmt, pkgs.clippy, pkgs.rust-analyzer
         #     • pkgs.pkg-config
-        #     • pkgs.xorg.libX11  (so that any `x11`‐dependent crate’s pkg-config
-        #       check succeeds in `cargo test`, etc.)
+        #     • all X11 dev libs in `x11Libs` (so that any x11‐dependent crate
+        #       passes its pkg-config checks, e.g. for xi.pc and xtst.pc)
         ########################################################################
         devShells.default = pkgs.mkShell {
           buildInputs = [
@@ -92,11 +102,7 @@
             pkgs.clippy
             pkgs.rust-analyzer
             pkgs.pkg-config
-
-            # ← This is crucial for the `x11` crate’s build.rs
-            pkgs.xorg.libX11
-            pkgs.xorg.libXi
-          ];
+          ] ++ x11Libs;
 
           shellHook = ''
             export RUST_SRC_PATH="${pkgs.rustc}/lib/rustlib/src/rust/library"

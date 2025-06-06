@@ -6,7 +6,7 @@
     nixpkgs.url      = "github:NixOS/nixpkgs/nixos-unstable";
     # 2) flake-utils to iterate over systems
     flake-utils.url  = "github:numtide/flake-utils";
-    # 3) oxalica/rust-overlay to get the latest Rust (stable, edition2024, etc.)
+    # 3) oxalica/rust-overlay to get the latest Rust toolchains
     rust-overlay.url = "github:oxalica/rust-overlay";
   };
 
@@ -14,54 +14,52 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         ############################################################################
-        # (A) The only way to import the oxalica overlay is as a single function:
-        #     (import rust-overlay).  That function will configure itself for the
-        #     correct system internally.
+        # (A) Import the oxalica overlay function:
+        #     (import rust-overlay) returns the overlay for this system.
         ############################################################################
         overlays = [ (import rust-overlay) ];
 
         ############################################################################
-        # (B) Re-import nixpkgs, applying the oxalica/rust-overlay.  Now 'pkgs'
-        #     has rustPlatform, rustc, cargo, etc., all at very latest stable.
+        # (B) Re-import nixpkgs with that overlay applied.
         ############################################################################
         pkgs = import nixpkgs {
           inherit system overlays;
         };
 
         ############################################################################
-        # (C) Alias rustPlatform from the newly-overlayed pkgs
+        # (C) Alias rustPlatform so we can still build our package with `buildRustPackage`.
         ############################################################################
         rustPlatform = pkgs.rustPlatform;
 
         ############################################################################
-        # (D) Define our crosskey buildRustPackage using that Rust ≥ 1.80.0
+        # (D) Define crosskeyPackage via `buildRustPackage` (Rust ≥1.80.0).
         ############################################################################
         crosskeyPackage = rustPlatform.buildRustPackage rec {
           pname   = "crosskey";
-          version = "0.1.0";  # must match your Cargo.toml
+          version = "0.1.0";  # must match Cargo.toml
 
-          # (D.1) Source directory (auto-detects Cargo.toml & Cargo.lock)
+          # (D.1) Point at this directory (auto‐detects Cargo.toml & Cargo.lock).
           src = ./.;
 
-          # (D.2) On first 'nix build .#crosskey', Nix will tell you the
-          # cargoSha256 it expected. Paste that value here.
+          # (D.2) After the first `nix build .#crosskey`, Nix tells you the expected cargoSha256.
           cargoHash = "sha256:7XokwlfLlVkY/gGh9uReSw8T06tYc3IVI01k3n1IAjg=";
 
-          # (D.3) If any dependencies (e.g. C libraries) require pkg-config, list them here:
+          # (D.3) If your crate’s build.rs uses pkg-config, list it here:
           nativeBuildInputs = [ pkgs.pkg-config ];
 
-          # (D.4) If you need X11/libxcb or other runtime libs, add them here:
+          # (D.4) If you need X11/libxcb at runtime, add them here. (Often unnecessary
+          #       if you only link dynamically and the user has X11 installed.)
           buildInputs = [ ];
         };
       in
       {
         ########################################################################
-        # (E) Expose crosskey so 'nix build .#crosskey' works
+        # (E) Expose crosskey so `nix build .#crosskey` works.
         ########################################################################
         packages.crosskey = crosskeyPackage;
 
         ########################################################################
-        # (F) Expose it as an 'app' so that 'nix run .#crosskey' just runs it
+        # (F) Expose it as an “app” so `nix run .#crosskey` simply executes it.
         ########################################################################
         apps.default = {
           type    = "app";
@@ -69,22 +67,23 @@
         };
 
         ########################################################################
-        # (G) Expose a development shell.  'nix develop' will drop you into a
-        #     shell with everything you need for `cargo fmt`, `cargo clippy`,
-        #     `cargo test`, plus `pkg-config`.
+        # (G) Expose a development shell (“nix develop”) with fmt, clippy, test.
+        #
+        #     We no longer pull `rustPlatform.rustc`—instead use `pkgs.rustc` etc.
+        #     because the overlay has injected those into `pkgs`.
         ########################################################################
         devShells.default = pkgs.mkShell {
           buildInputs = [
-            rustPlatform.rustc
-            rustPlatform.cargo
-            rustPlatform.rustfmt
-            rustPlatform.clippy
-            rustPlatform.rust-analyzer
+            pkgs.rustc
+            pkgs.cargo
+            pkgs.rustfmt
+            pkgs.clippy
+            pkgs.rust-analyzer
             pkgs.pkg-config
           ];
 
           shellHook = ''
-            export RUST_SRC_PATH="${rustPlatform.rustc}/lib/rustlib/src/rust/library"
+            export RUST_SRC_PATH="${pkgs.rustc}/lib/rustlib/src/rust/library"
             echo "➡️  Entering crosskey devShell (rustc: $(rustc --version))"
           '';
         };

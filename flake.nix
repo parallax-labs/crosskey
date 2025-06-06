@@ -45,7 +45,8 @@
 
           # (D.2) On first 'nix build .#crosskey', Nix will tell you the
           # cargoSha256 it expected. Paste that value here.
-          cargoHash =  pkgs.lib.fakeSha256;
+          cargoHash = "sha256:7XokwlfLlVkY/gGh9uReSw8T06tYc3IVI01k3n1IAjg=";
+
           # (D.3) If any dependencies (e.g. C libraries) require pkg-config, list them here:
           nativeBuildInputs = [ pkgs.pkg-config ];
 

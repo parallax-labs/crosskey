@@ -70,19 +70,21 @@
 
         ########################################################################
         # (G) Expose a development shell.  'nix develop' will drop you into a
-        #     shell with rustc, cargo, rustfmt, rust-analyzer, and pkg-config.
+        #     shell with everything you need for `cargo fmt`, `cargo clippy`,
+        #     `cargo test`, plus `pkg-config`.
         ########################################################################
         devShells.default = pkgs.mkShell {
           buildInputs = [
-            pkgs.rustc
-            pkgs.cargo
-            pkgs.rustfmt
-            pkgs.rust-analyzer
+            rustPlatform.rustc
+            rustPlatform.cargo
+            rustPlatform.rustfmt
+            rustPlatform.clippy
+            rustPlatform.rust-analyzer
             pkgs.pkg-config
           ];
 
           shellHook = ''
-            export RUST_SRC_PATH="${pkgs.rustc}/lib/rustlib/src/rust/library"
+            export RUST_SRC_PATH="${rustPlatform.rustc}/lib/rustlib/src/rust/library"
             echo "➡️  Entering crosskey devShell (rustc: $(rustc --version))"
           '';
         };

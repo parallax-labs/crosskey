@@ -1,140 +1,136 @@
 // src/key_listener.rs
 
-use rdev::{listen, Event, EventType, Key};
 use crossbeam_channel::Sender;
+use rdev::{listen, Event, EventType, Key};
+use std::thread;
 
-/// Simplified enum for the keys we want to display.
-pub enum CapturedKey {
-    Printable(char),
-    Special(String),
+/// A “key event” that distinguishes press vs. release.
+/// We’ll send these over the channel so the UI can react.
+#[derive(Clone, Debug)]
+pub enum KeyEvent {
+    Down(String),
+    Up(String),
 }
 
-/// Map an rdev `Event` → our `CapturedKey` (or `None` if we don’t care).
-/// – Letters A–Z (lowercase)
-/// – Numbers 0–9
-/// – Common punctuation keys
-/// – Function keys F1–F12
-/// – Arrow keys, Enter, Backspace, Tab, Escape, Shift, Ctrl, Alt, Meta, etc.
-fn map_event_to_key(ev: &Event) -> Option<CapturedKey> {
-    if let EventType::KeyPress(key) = ev.event_type {
-        match key {
-            // ─────────── Letters ───────────
-            Key::KeyA => Some(CapturedKey::Printable('a')),
-            Key::KeyB => Some(CapturedKey::Printable('b')),
-            Key::KeyC => Some(CapturedKey::Printable('c')),
-            Key::KeyD => Some(CapturedKey::Printable('d')),
-            Key::KeyE => Some(CapturedKey::Printable('e')),
-            Key::KeyF => Some(CapturedKey::Printable('f')),
-            Key::KeyG => Some(CapturedKey::Printable('g')),
-            Key::KeyH => Some(CapturedKey::Printable('h')),
-            Key::KeyI => Some(CapturedKey::Printable('i')),
-            Key::KeyJ => Some(CapturedKey::Printable('j')),
-            Key::KeyK => Some(CapturedKey::Printable('k')),
-            Key::KeyL => Some(CapturedKey::Printable('l')),
-            Key::KeyM => Some(CapturedKey::Printable('m')),
-            Key::KeyN => Some(CapturedKey::Printable('n')),
-            Key::KeyO => Some(CapturedKey::Printable('o')),
-            Key::KeyP => Some(CapturedKey::Printable('p')),
-            Key::KeyQ => Some(CapturedKey::Printable('q')),
-            Key::KeyR => Some(CapturedKey::Printable('r')),
-            Key::KeyS => Some(CapturedKey::Printable('s')),
-            Key::KeyT => Some(CapturedKey::Printable('t')),
-            Key::KeyU => Some(CapturedKey::Printable('u')),
-            Key::KeyV => Some(CapturedKey::Printable('v')),
-            Key::KeyW => Some(CapturedKey::Printable('w')),
-            Key::KeyX => Some(CapturedKey::Printable('x')),
-            Key::KeyY => Some(CapturedKey::Printable('y')),
-            Key::KeyZ => Some(CapturedKey::Printable('z')),
+/// Map an rdev `Key` → a short `String` label (or `None` if we don’t care).
+fn map_key_code(key: Key) -> Option<String> {
+    match key {
+        // ─────────── Letters ───────────
+        Key::KeyA => Some("a".into()),
+        Key::KeyB => Some("b".into()),
+        Key::KeyC => Some("c".into()),
+        Key::KeyD => Some("d".into()),
+        Key::KeyE => Some("e".into()),
+        Key::KeyF => Some("f".into()),
+        Key::KeyG => Some("g".into()),
+        Key::KeyH => Some("h".into()),
+        Key::KeyI => Some("i".into()),
+        Key::KeyJ => Some("j".into()),
+        Key::KeyK => Some("k".into()),
+        Key::KeyL => Some("l".into()),
+        Key::KeyM => Some("m".into()),
+        Key::KeyN => Some("n".into()),
+        Key::KeyO => Some("o".into()),
+        Key::KeyP => Some("p".into()),
+        Key::KeyQ => Some("q".into()),
+        Key::KeyR => Some("r".into()),
+        Key::KeyS => Some("s".into()),
+        Key::KeyT => Some("t".into()),
+        Key::KeyU => Some("u".into()),
+        Key::KeyV => Some("v".into()),
+        Key::KeyW => Some("w".into()),
+        Key::KeyX => Some("x".into()),
+        Key::KeyY => Some("y".into()),
+        Key::KeyZ => Some("z".into()),
 
-            // ─────────── Numbers ───────────
-            Key::Num0 => Some(CapturedKey::Printable('0')),
-            Key::Num1 => Some(CapturedKey::Printable('1')),
-            Key::Num2 => Some(CapturedKey::Printable('2')),
-            Key::Num3 => Some(CapturedKey::Printable('3')),
-            Key::Num4 => Some(CapturedKey::Printable('4')),
-            Key::Num5 => Some(CapturedKey::Printable('5')),
-            Key::Num6 => Some(CapturedKey::Printable('6')),
-            Key::Num7 => Some(CapturedKey::Printable('7')),
-            Key::Num8 => Some(CapturedKey::Printable('8')),
-            Key::Num9 => Some(CapturedKey::Printable('9')),
+        // ─────────── Numbers ───────────
+        Key::Num0 => Some("0".into()),
+        Key::Num1 => Some("1".into()),
+        Key::Num2 => Some("2".into()),
+        Key::Num3 => Some("3".into()),
+        Key::Num4 => Some("4".into()),
+        Key::Num5 => Some("5".into()),
+        Key::Num6 => Some("6".into()),
+        Key::Num7 => Some("7".into()),
+        Key::Num8 => Some("8".into()),
+        Key::Num9 => Some("9".into()),
 
-            // ───────── Punctuation (US‐ANSI layout) ─────────
-            Key::Minus        => Some(CapturedKey::Printable('-')),  // “–”
-            Key::Equal        => Some(CapturedKey::Printable('=')),
-            Key::LeftBracket  => Some(CapturedKey::Printable('[')),
-            Key::RightBracket => Some(CapturedKey::Printable(']')),
-            Key::BackSlash    => Some(CapturedKey::Printable('\\')),
-            Key::SemiColon    => Some(CapturedKey::Printable(';')),
-            Key::Quote        => Some(CapturedKey::Printable('\'')),
-            // Key::Backtick     => Some(CapturedKey::Printable('`')),  // “~” requires Shift detection
-            Key::Comma        => Some(CapturedKey::Printable(',')),
-            Key::Dot          => Some(CapturedKey::Printable('.')),
-            Key::Slash        => Some(CapturedKey::Printable('/')),
-            
-            // ─────────── Specials ───────────
-            Key::Return     => Some(CapturedKey::Special("⏎".into())),
-            Key::Backspace  => Some(CapturedKey::Special("⌫".into())),
-            Key::Tab        => Some(CapturedKey::Special("↹".into())),
-            Key::Escape     => Some(CapturedKey::Special("Esc".into())),
-            Key::Space      => Some(CapturedKey::Special("␣".into())),
+        // ───────── Punctuation (US-ANSI layout) ─────────
+        Key::Minus        => Some("-".into()),
+        Key::Equal        => Some("=".into()),
+        Key::LeftBracket  => Some("[".into()),
+        Key::RightBracket => Some("]".into()),
+        Key::BackSlash    => Some("\\".into()),
+        Key::SemiColon    => Some(";".into()),
+        Key::Quote        => Some("'".into()),
+        Key::Comma        => Some(",".into()),
+        Key::Dot          => Some(".".into()),
+        Key::Slash        => Some("/".into()),
 
-            // Modifiers
-            Key::ShiftLeft    | Key::ShiftRight    => Some(CapturedKey::Special("Shift".into())),
-            Key::ControlLeft  | Key::ControlRight  => Some(CapturedKey::Special("Ctrl".into())),
-            Key::Alt          /* Alt gr is platform‐specific */ => Some(CapturedKey::Special("Alt".into())),
-            Key::MetaLeft     | Key::MetaRight     => Some(CapturedKey::Special("Meta".into())),
+        // ─────────── Specials ───────────
+        Key::Return     => Some("⏎".into()),
+        Key::Backspace  => Some("⌫".into()),
+        Key::Tab        => Some("↹".into()),
+        Key::Escape     => Some("Esc".into()),
+        Key::Space      => Some("␣".into()),
 
-            // Arrow keys
-            Key::UpArrow    => Some(CapturedKey::Special("↑".into())),
-            Key::DownArrow  => Some(CapturedKey::Special("↓".into())),
-            Key::LeftArrow  => Some(CapturedKey::Special("←".into())),
-            Key::RightArrow => Some(CapturedKey::Special("→".into())),
+        // Modifiers
+        Key::ShiftLeft   | Key::ShiftRight   => Some("Shift".into()),
+        Key::ControlLeft | Key::ControlRight => Some("Ctrl".into()),
+        Key::Alt                              => Some("Alt".into()),
+        Key::MetaLeft    | Key::MetaRight    => Some("Meta".into()),
 
-            // Function keys
-            Key::F1  => Some(CapturedKey::Special("F1".into())),
-            Key::F2  => Some(CapturedKey::Special("F2".into())),
-            Key::F3  => Some(CapturedKey::Special("F3".into())),
-            Key::F4  => Some(CapturedKey::Special("F4".into())),
-            Key::F5  => Some(CapturedKey::Special("F5".into())),
-            Key::F6  => Some(CapturedKey::Special("F6".into())),
-            Key::F7  => Some(CapturedKey::Special("F7".into())),
-            Key::F8  => Some(CapturedKey::Special("F8".into())),
-            Key::F9  => Some(CapturedKey::Special("F9".into())),
-            Key::F10 => Some(CapturedKey::Special("F10".into())),
-            Key::F11 => Some(CapturedKey::Special("F11".into())),
-            Key::F12 => Some(CapturedKey::Special("F12".into())),
+        // Arrow keys
+        Key::UpArrow    => Some("↑".into()),
+        Key::DownArrow  => Some("↓".into()),
+        Key::LeftArrow  => Some("←".into()),
+        Key::RightArrow => Some("→".into()),
 
-            // Home / End / PageUp / PageDown / Insert / Delete
-            Key::Home      => Some(CapturedKey::Special("Home".into())),
-            Key::End       => Some(CapturedKey::Special("End".into())),
-            Key::PageUp    => Some(CapturedKey::Special("PgUp".into())),
-            Key::PageDown  => Some(CapturedKey::Special("PgDn".into())),
-            Key::Insert    => Some(CapturedKey::Special("Ins".into())),
-            Key::Delete    => Some(CapturedKey::Special("Del".into())),
+        // Function keys
+        Key::F1  => Some("F1".into()),
+        Key::F2  => Some("F2".into()),
+        Key::F3  => Some("F3".into()),
+        Key::F4  => Some("F4".into()),
+        Key::F5  => Some("F5".into()),
+        Key::F6  => Some("F6".into()),
+        Key::F7  => Some("F7".into()),
+        Key::F8  => Some("F8".into()),
+        Key::F9  => Some("F9".into()),
+        Key::F10 => Some("F10".into()),
+        Key::F11 => Some("F11".into()),
+        Key::F12 => Some("F12".into()),
 
-            // Any other key we don’t care about
-            _ => None,
-        }
-    } else {
-        None
+        // Home / End / PageUp / PageDown / Insert / Delete
+        Key::Home      => Some("Home".into()),
+        Key::End       => Some("End".into()),
+        Key::PageUp    => Some("PgUp".into()),
+        Key::PageDown  => Some("PgDn".into()),
+        Key::Insert    => Some("Ins".into()),
+        Key::Delete    => Some("Del".into()),
+
+        _ => None,
     }
 }
 
-/// Spawn a background thread that listens for global key presses and sends them as `String` over `tx`.
+/// Spawn a background thread that listens for both `KeyPress` and `KeyRelease`.
+/// On a press → send `KeyEvent::Down(label)`. On a release → send `KeyEvent::Up(label)`.
 ///
-/// On macOS, you will need to grant “Accessibility” permission to your built binary (System Settings → Privacy & Security → Accessibility → allow this app).
-/// On Windows, you may see a UAC prompt the first time.
-/// On most Linux setups, this will work out of the box (X11/Wayland support via rdev).
-pub fn start_key_listener(tx: Sender<String>) {
-    std::thread::spawn(move || {
-        listen(move |event| {
-            if let Some(k) = map_event_to_key(&event) {
-                let text = match k {
-                    CapturedKey::Printable(c) => c.to_string(),
-                    CapturedKey::Special(s) => s,
-                };
-                // We ignore send errors here (if the receiver side has gone away).
-                let _ = tx.send(text);
+/// On macOS you need Accessibility permission; on Windows you may see UAC; on Linux it “just works” (X11/Wayland).
+pub fn start_key_listener(tx: Sender<KeyEvent>) {
+    thread::spawn(move || {
+        listen(move |event: Event| {
+            match event.event_type {
+                EventType::KeyPress(key) => {
+                    if let Some(label) = map_key_code(key) {
+                        let _ = tx.send(KeyEvent::Down(label));
+                    }
+                }
+                EventType::KeyRelease(key) => {
+                    if let Some(label) = map_key_code(key) {
+                        let _ = tx.send(KeyEvent::Up(label));
+                    }
+                }
+                _ => {}
             }
         })
         .unwrap();

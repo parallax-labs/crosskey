@@ -61,28 +61,26 @@ impl OverlayState {
         let mut displayed = raw_label.clone();
 
         // If Shift is held, transform single letters/digits:
-        if self.held_modifiers.iter().any(|m| m == "Shift") {
-            if raw_label.len() == 1 {
-                let c = raw_label.chars().next().unwrap();
-                if c.is_ascii_lowercase() {
-                    // letter → uppercase
-                    displayed = c.to_ascii_uppercase().to_string();
-                } else if c.is_ascii_digit() {
-                    // digit → symbol (US keyboard)
-                    displayed = match c {
-                        '1' => "!".into(),
-                        '2' => "@".into(),
-                        '3' => "#".into(),
-                        '4' => "$".into(),
-                        '5' => "%".into(),
-                        '6' => "^".into(),
-                        '7' => "&".into(),
-                        '8' => "*".into(),
-                        '9' => "(".into(),
-                        '0' => ")".into(),
-                        _ => raw_label.clone(),
-                    };
-                }
+        if self.held_modifiers.iter().any(|m| m == "Shift") && raw_label.len() == 1 {
+            let c = raw_label.chars().next().unwrap();
+            if c.is_ascii_lowercase() {
+                // letter → uppercase
+                displayed = c.to_ascii_uppercase().to_string();
+            } else if c.is_ascii_digit() {
+                // digit → symbol (US keyboard)
+                displayed = match c {
+                    '1' => "!".into(),
+                    '2' => "@".into(),
+                    '3' => "#".into(),
+                    '4' => "$".into(),
+                    '5' => "%".into(),
+                    '6' => "^".into(),
+                    '7' => "&".into(),
+                    '8' => "*".into(),
+                    '9' => "(".into(),
+                    '0' => ")".into(),
+                    _ => raw_label.clone(),
+                };
             }
         }
 

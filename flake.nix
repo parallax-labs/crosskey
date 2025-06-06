@@ -55,7 +55,7 @@
         ############################################################################
         crosskeyPackage = rustPlatform.buildRustPackage rec {
           pname   = "crosskey";
-  version = "0.2.2";  # must match Cargo.toml
+  version = "0.2.3";  # must match Cargo.toml
 
           # (E.1) Point at this directory (auto‐detects Cargo.toml & Cargo.lock).
           src = ./.;

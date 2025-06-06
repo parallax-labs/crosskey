@@ -62,7 +62,7 @@
 
           # (E.2) After the first `nix build .#crosskey`, Nix will complain
           #       if cargoHash is wrong; copy the recommended hash here.
-          cargoHash = "sha256:7XokwlfLlVkY/gGh9uReSw8T06tYc3IVI01k3n1IAjg=";
+          cargoHash = "sha256-D3cG89b9+mATFUK0MBnTbzRMzLtkMymFrZlsfw3V5p8=";
 
           # (E.3) We still need `pkg-config` at build time for any crate
           #       whose build.rs invokes pkg-config (e.g. the `x11` crate).

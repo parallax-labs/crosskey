@@ -1,80 +1,76 @@
 {
-  description = "crosskey: a global key‐overlay for highlighting Vim‐style motions";
+  description = "crosskey: a global key-overlay for highlighting Vim-style motions";
 
   inputs = {
-    # Pin to a recent nixpkgs that definitely has `rustc` and `cargo`.
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.05"; 
-    flake-utils.url = "github:numtide/flake-utils";
+    # We pin to a recent nixpkgs so that buildRustPackage still works,
+    # but we want a newer Rust too (for edition2024).
+    nixpkgs.url      = "github:NixOS/nixpkgs/nixos-unstable";
+    flake-utils.url  = "github:numtide/flake-utils";
+    rust-overlay.url = "github:oxalica/rust-overlay";
   };
 
-  outputs = { self, nixpkgs, flake-utils, ... }:
+  outputs = { self, nixpkgs, flake-utils, rust-overlay, ... }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        # Import nixpkgs for this system
-        pkgs = import nixpkgs {
+        # Import nixpkgs for this system, with rust-overlay overlaid:
+        overlayedPkgs = import nixpkgs {
           inherit system;
+          overlays = [ (import rust-overlay { inherit system; }).overlay ];
         };
 
-        # For building the Rust package, use the standard Rust Platform
-        rustPlatform = pkgs.rustPlatform;
+        # Now the overlayedPkgs has a modern rustPlatform, rustc, cargo, etc.
+        rustPkgs = overlayedPkgs;
+        rustPlatform = rustPkgs.rustPlatform;
+
+        # Build the crosskey Rust package:
         crosskeyPackage = rustPlatform.buildRustPackage rec {
           pname = "crosskey";
-          version = "0.1.0";  # match your Cargo.toml version
+          version = "0.1.0"; # match your Cargo.toml
 
-          # Source is the current directory
-          src = ./.;
+          src = ./.;  # this directory (contains Cargo.toml & Cargo.lock)
 
-          # Use your Cargo.lock for reproducible builds
-          cargoLock = ./Cargo.lock;
-          
-          # The first time you run `nix build .#crosskey` you will see
-          # a hash mismatch error. Copy the “got …” hash into cargoSha256
+          # Do not specify cargoLock = ...; newer buildRustPackage auto-detects it.
           cargoSha256 = "0000000000000000000000000000000000000000000000000000";
 
-          # If your crate calls pkg-config or links to native libraries,
-          # put pkg-config (or the needed -dev packages) here. Otherwise, you can leave it empty.
-          nativeBuildInputs = [ pkgs.pkg-config ];
+          nativeBuildInputs = [ rustPkgs.pkg-config ];
+          buildInputs       = [ ];
 
-          # At runtime, if you depend on X11 or other C libraries, add them here.
-          # For a pure cross-platform Rust-only crate with `rdev`, you might need
-          # `libX11` or `libxcb` on Linux. If you run into run-time errors, add them here.
-          buildInputs = [];
+          # If you need X11 at runtime (Linux), you could add:
+          # buildInputs = [ rustPkgs.libX11 rustPkgs.libxcb ];
         };
-
       in
       {
-        ### 1) Expose the `crosskey` package so that users can do:
-        ###      nix profile install github:you/your-repo#crosskey
-        packages.crosskey = crosskeyPackage;
-
-        ### 2) Expose it as an “app” so people can run:
-        ###      nix run github:you/your-repo#crosskey
-        apps.default = {
-          type = "app";
-          program = "${crosskeyPackage}/bin/crosskey";
+        # Expose the package so that people can do:
+        #    nix profile install .#crosskey
+        packages = {
+          crosskey = crosskeyPackage;
         };
 
-        ### 3) A development shell (replacing your old shell.nix)
-        devShell = pkgs.mkShell {
-          buildInputs = [
-            # Rust compiler and Cargo
-            pkgs.rustc
-            pkgs.cargo
+        # Expose it as an “app” so people can run:
+        #    nix run .#crosskey
+        apps = {
+          default = {
+            type = "app";
+            program = "${crosskeyPackage}/bin/crosskey";
+          };
+        };
 
-            # Formatters / analyzers you may want
-            pkgs.rustfmt
-            pkgs.rust-analyzer
+        # Expose a development shell under `devShells.${system}.default`
+        devShells = {
+          default = rustPkgs.mkShell {
+            buildInputs = [
+              rustPkgs.rustc
+              rustPkgs.cargo
+              rustPkgs.rustfmt
+              rustPkgs.rust-analyzer
+              rustPkgs.pkg-config
+            ];
 
-            # pkg-config in case `rdev` or another crate needs to find C libs
-            pkgs.pkg-config
-          ];
-
-          # If you need environment variables for Rust access, set them here:
-          shellHook = ''
-            # If you want to point RUST_SRC_PATH to the standard library source:
-            export RUST_SRC_PATH="${pkgs.rustc}/lib/rustlib/src/rust/library"
-            echo "Entering crosskey devShell"
-          '';
+            shellHook = ''
+              export RUST_SRC_PATH="${rustPkgs.rustc}/lib/rustlib/src/rust/library"
+              echo "Entering crosskey devShell (rustc: $(rustc --version))"
+            '';
+          };
         };
       }
     );

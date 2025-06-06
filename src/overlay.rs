@@ -43,7 +43,7 @@ impl OverlayState {
     ///   3) Otherwise, compute a “displayed” label:
     ///       - If Shift is in `held_modifiers` and raw_label is a single letter/digit, transform accordingly.
     ///       - Otherwise, displayed = raw_label.
-    ///      Then insert `(raw_label, displayed)` into `held_map`.
+    ///         Then insert `(raw_label, displayed)` into `held_map`.
     pub fn key_down(&mut self, raw_label: String) {
         // 1) Cancel any fade
         self.fading = None;
@@ -143,7 +143,7 @@ impl OverlayState {
 
         // 1) If Shift is held _and_ there are ordinary keys held, do NOT show “Shift”:
         let show_shift =
-            !(self.held_modifiers.contains(&"Shift".to_string()) && !self.held_map.is_empty());
+            !self.held_modifiers.contains(&"Shift".to_string()) || self.held_map.is_empty();
 
         // 2) Append all other modifiers in the order they were pressed:
         for m in &self.held_modifiers {

@@ -3,9 +3,9 @@
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use crate::key_listener::KeyEvent;
 use crossbeam_channel::Receiver;
 use eframe::egui;
-use crate::key_listener::KeyEvent;
 
 /// When the final key is released, we store it here to fade out over 2 seconds.
 struct ReleasedKey {
@@ -49,10 +49,7 @@ impl OverlayState {
         self.fading = None;
 
         // 2) If it’s one of our modifiers, just add it (if not already present):
-        if raw_label == "Shift"
-            || raw_label == "Ctrl"
-            || raw_label == "Alt"
-            || raw_label == "Meta"
+        if raw_label == "Shift" || raw_label == "Ctrl" || raw_label == "Alt" || raw_label == "Meta"
         {
             if !self.held_modifiers.contains(&raw_label) {
                 self.held_modifiers.push(raw_label);
@@ -102,10 +99,7 @@ impl OverlayState {
     ///   3) If after removal both `held_modifiers` and `held_map` are empty, start fading the removed label.
     pub fn key_up(&mut self, raw_label: &str) {
         // 1) If releasing a modifier, just remove from held_modifiers:
-        if raw_label == "Shift"
-            || raw_label == "Ctrl"
-            || raw_label == "Alt"
-            || raw_label == "Meta"
+        if raw_label == "Shift" || raw_label == "Ctrl" || raw_label == "Alt" || raw_label == "Meta"
         {
             self.held_modifiers.retain(|m| m != raw_label);
             return;
@@ -150,7 +144,8 @@ impl OverlayState {
         let mut out = Vec::new();
 
         // 1) If Shift is held _and_ there are ordinary keys held, do NOT show “Shift”:
-        let show_shift = !(self.held_modifiers.contains(&"Shift".to_string()) && !self.held_map.is_empty());
+        let show_shift =
+            !(self.held_modifiers.contains(&"Shift".to_string()) && !self.held_map.is_empty());
 
         // 2) Append all other modifiers in the order they were pressed:
         for m in &self.held_modifiers {
@@ -229,33 +224,34 @@ impl eframe::App for KeyOverlayApp {
         visuals.window_fill = egui::Color32::from_rgba_unmultiplied(0, 0, 0, 0);
         ctx.set_visuals(visuals);
 
-        egui::CentralPanel::default().frame(egui::Frame {
-            fill: egui::Color32::from_rgba_unmultiplied(0, 0, 0, 128),
-            inner_margin: egui::Margin::same(10.0),
-            stroke: egui::Stroke::NONE,
-            ..Default::default()
-        })
-        .show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                // 4a) Draw all held labels at full opacity (255):
-                for label in &held_labels {
-                    ui.label(
-                        egui::RichText::new(label)
-                            .font(egui::FontId::monospace(28.0))
-                            .color(egui::Color32::from_rgba_unmultiplied(255, 255, 255, 255)),
-                    );
-                    ui.add_space(8.0);
-                }
-                // 4b) If fading, draw that single label with its computed alpha:
-                if let Some((label, alpha)) = fading_option {
-                    ui.label(
-                        egui::RichText::new(label)
-                            .font(egui::FontId::monospace(28.0))
-                            .color(egui::Color32::from_rgba_unmultiplied(255, 255, 255, alpha)),
-                    );
-                }
+        egui::CentralPanel::default()
+            .frame(egui::Frame {
+                fill: egui::Color32::from_rgba_unmultiplied(0, 0, 0, 128),
+                inner_margin: egui::Margin::same(10.0),
+                stroke: egui::Stroke::NONE,
+                ..Default::default()
+            })
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    // 4a) Draw all held labels at full opacity (255):
+                    for label in &held_labels {
+                        ui.label(
+                            egui::RichText::new(label)
+                                .font(egui::FontId::monospace(28.0))
+                                .color(egui::Color32::from_rgba_unmultiplied(255, 255, 255, 255)),
+                        );
+                        ui.add_space(8.0);
+                    }
+                    // 4b) If fading, draw that single label with its computed alpha:
+                    if let Some((label, alpha)) = fading_option {
+                        ui.label(
+                            egui::RichText::new(label)
+                                .font(egui::FontId::monospace(28.0))
+                                .color(egui::Color32::from_rgba_unmultiplied(255, 255, 255, alpha)),
+                        );
+                    }
+                });
             });
-        });
 
         // 5) Keep repainting so the fade animation is smooth:
         ctx.request_repaint_after(Duration::from_millis(50));

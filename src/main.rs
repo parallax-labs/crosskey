@@ -3,10 +3,10 @@
 mod key_listener;
 mod overlay;
 
-use std::sync::{Arc, Mutex};
+use crate::key_listener::{KeyEvent, start_key_listener};
+use crate::overlay::{KeyOverlayApp, OverlayState};
 use crossbeam_channel::unbounded;
-use crate::key_listener::{start_key_listener, KeyEvent};
-use crate::overlay::{OverlayState, KeyOverlayApp};
+use std::sync::{Arc, Mutex};
 
 fn main() {
     // 1) Shared state + channel
@@ -29,9 +29,5 @@ fn main() {
     };
 
     // 5) Run the eframe loop:
-    let _ = eframe::run_native(
-        "crosskey",
-        native_options,
-        Box::new(|_| Box::new(app)),
-    );
+    let _ = eframe::run_native("crosskey", native_options, Box::new(|_| Box::new(app)));
 }

@@ -13,10 +13,10 @@ fn main() {
     let state = Arc::new(Mutex::new(OverlayState::default()));
     let (tx, rx) = unbounded::<KeyEvent>();
 
-    // 2) Spawn the key‐listener thread
+    // 2) Spawn the key-listener thread
     start_key_listener(tx.clone());
 
-    // 3) Build our eframe App
+    // 3) Build our eframe “App”
     let app = KeyOverlayApp::new(state.clone(), rx);
 
     // 4) Configure a transparent, always-on-top, borderless window (eframe 0.23)
@@ -28,7 +28,7 @@ fn main() {
         ..Default::default()
     };
 
-    // 5) Run the eframe loop; the CreationContext isn’t needed here (`|_|`).
+    // 5) Run the eframe loop:
     let _ = eframe::run_native(
         "crosskey",
         native_options,

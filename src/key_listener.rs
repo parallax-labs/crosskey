@@ -1,11 +1,11 @@
 // src/key_listener.rs
 
-use crossbeam_channel::Sender;
 use rdev::{listen, Event, EventType, Key};
+use crossbeam_channel::Sender;
 use std::thread;
 
 /// A “key event” that distinguishes press vs. release.
-/// We’ll send these over the channel so the UI can react.
+/// We send these over the channel so the UI can transform/apply Shift, etc.
 #[derive(Clone, Debug)]
 pub enum KeyEvent {
     Down(String),
@@ -13,6 +13,8 @@ pub enum KeyEvent {
 }
 
 /// Map an rdev `Key` → a short `String` label (or `None` if we don’t care).
+/// We now return `"Space"` for space, and still return `"Shift"`, `"Ctrl"`, etc.,
+/// since the overlay will handle transforming letters if Shift is held.
 fn map_key_code(key: Key) -> Option<String> {
     match key {
         // ─────────── Letters ───────────
@@ -55,7 +57,7 @@ fn map_key_code(key: Key) -> Option<String> {
         Key::Num8 => Some("8".into()),
         Key::Num9 => Some("9".into()),
 
-        // ───────── Punctuation (US-ANSI layout) ─────────
+        // ───────── Punctuation (US-ANSI) ─────────
         Key::Minus        => Some("-".into()),
         Key::Equal        => Some("=".into()),
         Key::LeftBracket  => Some("[".into()),
@@ -68,11 +70,11 @@ fn map_key_code(key: Key) -> Option<String> {
         Key::Slash        => Some("/".into()),
 
         // ─────────── Specials ───────────
-        Key::Return     => Some("⏎".into()),
-        Key::Backspace  => Some("⌫".into()),
-        Key::Tab        => Some("↹".into()),
-        Key::Escape     => Some("Esc".into()),
-        Key::Space      => Some("␣".into()),
+        Key::Return    => Some("⏎".into()),
+        Key::Backspace => Some("⌫".into()),
+        Key::Tab       => Some("↹".into()),
+        Key::Escape    => Some("Esc".into()),
+        Key::Space     => Some("Space".into()), // Now “Space” instead of “␣”
 
         // Modifiers
         Key::ShiftLeft   | Key::ShiftRight   => Some("Shift".into()),
@@ -113,9 +115,7 @@ fn map_key_code(key: Key) -> Option<String> {
 }
 
 /// Spawn a background thread that listens for both `KeyPress` and `KeyRelease`.
-/// On a press → send `KeyEvent::Down(label)`. On a release → send `KeyEvent::Up(label)`.
-///
-/// On macOS you need Accessibility permission; on Windows you may see UAC; on Linux it “just works” (X11/Wayland).
+/// On press → send `KeyEvent::Down(label)`. On release → send `KeyEvent::Up(label)`.
 pub fn start_key_listener(tx: Sender<KeyEvent>) {
     thread::spawn(move || {
         listen(move |event: Event| {

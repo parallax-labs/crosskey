@@ -2,13 +2,8 @@
   description = "crosskey: a global key-overlay for highlighting Vim-style motions";
 
   inputs = {
-    # 1) We need a recent nixpkgs with flakes enabled
     nixpkgs.url      = "github:NixOS/nixpkgs/nixos-unstable";
-
-    # 2) flake-utils to iterate over systems
     flake-utils.url  = "github:numtide/flake-utils";
-
-    # 3) oxalica/rust-overlay to get the latest Rust toolchains
     rust-overlay.url = "github:oxalica/rust-overlay";
   };
 
@@ -16,29 +11,20 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         ############################################################################
-        # (A) Import the oxalica overlay function: (import rust-overlay) yields
-        #     an overlay that sets up a recent Rust toolchain on this `system`.
+        # (A) Import the oxalica overlay so that `pkgs` has the latest Rust toolchain
         ############################################################################
         overlays = [ (import rust-overlay) ];
+        pkgs     = import nixpkgs { inherit system overlays; };
+        rustPkgs = pkgs.rustPlatform;
 
         ############################################################################
-        # (B) Re‐import nixpkgs with that overlay applied: `pkgs` now has a
-        #     fresh Rust (≥1.80), Clippy, rustfmt, rust-analyzer, etc.
+        # (B) Parse Cargo.toml to extract `package.version` exactly once
         ############################################################################
-        pkgs = import nixpkgs {
-          inherit system overlays;
-        };
+        cargoMeta = builtins.fromTOML (builtins.readFile ./Cargo.toml);
+        version   = cargoMeta.package.version;  # e.g. "0.2.3"
 
         ############################################################################
-        # (C) Alias “rustPlatform” so we can still build our package via
-        #     `rustPlatform.buildRustPackage` (it uses the overlayed Rust).
-        ############################################################################
-        rustPlatform = pkgs.rustPlatform;
-
-        ############################################################################
-        # (D) Gather all X11‐related dev libraries into one variable so we can
-        #     reference them in both `crosskeyPackage.buildInputs` and
-        #     `devShells.default.buildInputs` without duplication.
+        # (C) Consolidate all the X11‐related native libraries into one list
         ############################################################################
         x11Libs = [
           pkgs.xorg.libX11
@@ -47,40 +33,42 @@
         ];
 
         ############################################################################
-        # (E) Define crosskeyPackage using `buildRustPackage`.  Notice:
-        #     • We keep `nativeBuildInputs = [ pkgs.pkg-config ]` so that
-        #       pkg-config is present during the build.
-        #     • We add `x11Libs` to `buildInputs` so that all required `.pc`
-        #       files (`x11.pc`, `xi.pc`, `xtst.pc`) are available.
+        # (D) Define crosskeyPackage using buildRustPackage with a manual cargoHash.
+        #     • “version” is read from Cargo.toml
+        #     • “cargoHash” must be replaced once (by running `nix build .#crosskey`)
+        #     • “nativeBuildInputs” contains pkg-config so that any crate’s build.rs
+        #       invoking pkg-config still works (x11 crate, etc.)
+        #     • “buildInputs” includes the X11 dev libraries so x11.pc, xi.pc, xtst.pc
+        #       are present in the Nix build environment.
         ############################################################################
-        crosskeyPackage = rustPlatform.buildRustPackage rec {
+        crosskeyPackage = rustPkgs.buildRustPackage rec {
           pname   = "crosskey";
-  version = "0.2.3";  # must match Cargo.toml
+          inherit version;
 
-          # (E.1) Point at this directory (auto‐detects Cargo.toml & Cargo.lock).
+          # (D.1) Point at this directory (auto‐discovers Cargo.toml & Cargo.lock).
           src = ./.;
 
-          # (E.2) After the first `nix build .#crosskey`, Nix will complain
-          #       if cargoHash is wrong; copy the recommended hash here.
-  cargoHash = "sha256-/tWOuFLhOzqGzqdIDOSA759+lIgF8Zx5+qE89+5wgzE=";
+          # (D.2) This must match “cargo build --release”’s expectations. On first
+          #       run, replace the “AAAAAAAA…” with the “got: sha256-…” you see.
+          cargoHash = "sha256:/tWOuFLhOzqGzqdIDOSA759+lIgF8Zx5+qE89+5wgzE=";
 
-          # (E.3) We still need `pkg-config` at build time for any crate
-          #       whose build.rs invokes pkg-config (e.g. the `x11` crate).
+          # (D.3) We still need pkg-config at build time for any crate whose
+          #       build.rs invokes pkg-config (notably the `x11` crate).
           nativeBuildInputs = [ pkgs.pkg-config ];
 
-          # (E.4) Add all the X11 dev libraries so that `x11.pc`, `xi.pc`,
-          #       and `xtst.pc` are found automatically.
+          # (D.4) Add the X11 dev libraries so that x11.pc, xi.pc, and xtst.pc
+          #       exist in the environment, satisfying any pkg-config checks.
           buildInputs = x11Libs;
         };
       in
       {
         ########################################################################
-        # (F) Expose crosskey so that `nix build .#crosskey` works
+        # (E) Expose crosskey so that `nix build .#crosskey` works.
         ########################################################################
         packages.crosskey = crosskeyPackage;
 
         ########################################################################
-        # (G) Expose it as an “app” so that `nix run .#crosskey` simply runs it
+        # (F) Expose it as an “app” so that `nix run .#crosskey` just executes it.
         ########################################################################
         apps.default = {
           type    = "app";
@@ -88,11 +76,12 @@
         };
 
         ########################################################################
-        # (H) Expose a development shell.  `nix develop` provides:
-        #     • pkgs.rustc, pkgs.cargo, pkgs.rustfmt, pkgs.clippy, pkgs.rust-analyzer
-        #     • pkgs.pkg-config
-        #     • all X11 dev libs in `x11Libs` (so that any x11‐dependent crate
-        #       passes its pkg-config checks, e.g. for xi.pc and xtst.pc)
+        # (G) Expose a development shell. `nix develop` will drop you into a
+        #     shell with:
+        #       • rustc, cargo, rustfmt, clippy, rust-analyzer
+        #       • pkg-config
+        #       • x11 dev libraries (libX11, libXi, libXtst)
+        #     so that `cargo fmt`, `cargo clippy`, and `cargo test` “just work.”
         ########################################################################
         devShells.default = pkgs.mkShell {
           buildInputs = [

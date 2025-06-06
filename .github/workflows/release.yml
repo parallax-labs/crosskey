@@ -18,8 +18,7 @@ jobs:
             system: x86_64-linux
           - os: macos-latest
             system: x86_64-darwin
-          - os: ubuntu-latest   # Linux runner, cross‐build for Windows
-            system: x86_64-windows
+
 
     outputs:
       artifact-name: crosskey-${{ matrix.system }}
@@ -84,13 +83,6 @@ jobs:
           name: crosskey-x86_64-darwin
           path: downloaded/
 
-      # 3) Download Windows build
-      - name: Download Windows build
-        uses: actions/download-artifact@v4
-        with:
-          name: crosskey-x86_64-windows
-          path: downloaded/
-
       # 4) Create a GitHub Release using the pushed tag (e.g. “v1.2.3”)
       - name: Create GitHub Release
         id: create_release
@@ -111,6 +103,5 @@ jobs:
           files: |
             downloaded/crosskey-x86_64-linux/crosskey
             downloaded/crosskey-x86_64-darwin/crosskey
-            downloaded/crosskey-x86_64-windows/crosskey
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

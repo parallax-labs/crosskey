@@ -55,14 +55,14 @@
         ############################################################################
         crosskeyPackage = rustPlatform.buildRustPackage rec {
           pname   = "crosskey";
-          version = "0.1.1";  # must match Cargo.toml
+  version = "0.2.0";  # must match Cargo.toml
 
           # (E.1) Point at this directory (auto‐detects Cargo.toml & Cargo.lock).
           src = ./.;
 
           # (E.2) After the first `nix build .#crosskey`, Nix will complain
           #       if cargoHash is wrong; copy the recommended hash here.
-          cargoHash = "sha256-D3cG89b9+mATFUK0MBnTbzRMzLtkMymFrZlsfw3V5p8=";
+  cargoHash = "sha256:JErbK1DMpLNk4mw4veYNgDsQaF+WmrDdTFnLIGYeW+Q=";
 
           # (E.3) We still need `pkg-config` at build time for any crate
           #       whose build.rs invokes pkg-config (e.g. the `x11` crate).

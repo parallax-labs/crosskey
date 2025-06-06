@@ -50,7 +50,7 @@
 
           # (D.2) This must match “cargo build --release”’s expectations. On first
           #       run, replace the “AAAAAAAA…” with the “got: sha256-…” you see.
-          cargoHash = "sha256:qvoJkRM5lN8o9IEAnyY7692NG74BqirzawQCZcFAqU8=";
+          cargoHash = "sha256:vOntn8Y771WreK+TJny1YQBrlUPzwxUA9fkesOdiZkI=";
 
           # (D.3) We still need pkg-config at build time for any crate whose
           #       build.rs invokes pkg-config (notably the `x11` crate).

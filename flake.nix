@@ -95,6 +95,7 @@
 
             # ← This is crucial for the `x11` crate’s build.rs
             pkgs.xorg.libX11
+            pkgs.xorg.libXi
           ];
 
           shellHook = ''
